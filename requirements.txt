@@ -1,4 +1,3 @@
-# Packages needed for your MCP server
 httpx
 openai-agents
 
