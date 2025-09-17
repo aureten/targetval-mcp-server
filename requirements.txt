@@ -1,5 +1,7 @@
-from agents.mcp.server import MCPServer
-from agents.tools import Tool
+# Packages needed for your MCP server
+httpx
+openai-agents
+
 
 
 
