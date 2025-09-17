@@ -1,6 +1,7 @@
 import httpx
 from openai_agents.mcp.server import MCPServer, Tool
 
+# Define an asynchronous function that calls your TargetVal gateway and returns JSON.
 async def fetch_evidence(symbol: str, condition: str, modules: list[str] | None = None) -> dict:
     params = {"symbol": symbol, "condition": condition}
     if modules:
@@ -10,6 +11,7 @@ async def fetch_evidence(symbol: str, condition: str, modules: list[str] | None 
         resp.raise_for_status()
         return resp.json()
 
+# Register the function as a tool. ChatGPT will see the input and output schemas.
 fetch_tool = Tool(
     name="fetch_targetval_evidence",
     description="Fetch aggregated target‑validation evidence for a gene and condition.",
@@ -30,7 +32,9 @@ fetch_tool = Tool(
     coroutine=fetch_evidence,
 )
 
+# Create an MCP server and expose the tool
 server = MCPServer(tools=[fetch_tool])
 
 if __name__ == "__main__":
+    # Start the server on port 8080
     server.run(host="0.0.0.0", port=8080)
