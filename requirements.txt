@@ -1,2 +1,3 @@
 httpx
-openai-agents
+git+https://github.com/openai/openai-agents-python.git#egg=openai_agents
+
