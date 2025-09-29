@@ -1,5 +1,3 @@
-# mcp_server.py — TargetVal MCP server (original logic; decorator fix only)
-
 import os
 import json
 import re
@@ -46,7 +44,6 @@ def _parse_query(q: str) -> Tuple[Optional[str], Optional[str]]:
     tokens = txt.split()
     if not tokens:
         return None, None
-    # pick first token that looks like a gene-like symbol
     sym = None
     for t in tokens:
         up = t.strip().upper()
@@ -69,17 +66,13 @@ def _encode_post(url: str, body: Dict[str, Any]) -> str:
     return f"POST|{url}|{json.dumps(body, separators=(',',':'))}"
 
 def _aggregate_body(symbol: Optional[str], condition: Optional[str]) -> Dict[str, Any]:
-    # Keep payload light and focused on high-signal modules
     modules = ["mech_ppi", "mech_pathways", "tract_drugs", "clin_endpoints"]
-    body = {
+    return {
         "symbol": symbol,
         "condition": condition,
         "modules": modules,
         "limit": DEFAULT_LIMIT
     }
-    # If your gateway supports a LITE/SCORE mode, you can add it here
-    # body["mode"] = "LITE"
-    return body
 
 def _results_for(symbol: Optional[str], condition: Optional[str]) -> List[Dict[str, str]]:
     """Return a small list of actionable results for the query."""
@@ -118,24 +111,17 @@ def _results_for(symbol: Optional[str], condition: Optional[str]) -> List[Dict[s
 # Tools
 # ----------------------------------------------------------------------------
 
-@mcp.tool()  # ← add parentheses
+@mcp.tool()   # note: parentheses required for newer fastmcp
 def search(query: str) -> str:
-    """
-    Return a list of candidate results for a free-form query.
-    The return value MUST be a JSON string with {"results":[{id,title,url}...]}
-    """
+    """Return a list of candidate results for a free-form query."""
     symbol, condition = _parse_query(query)
     results = _results_for(symbol, condition)
     payload = {"results": results}
     return json.dumps(payload, ensure_ascii=False)
 
-@mcp.tool()  # ← add parentheses
+@mcp.tool()
 def fetch(id: str) -> str:
-    """
-    Fetch full content for a given result id.
-    The return value MUST be a JSON string of the form:
-      {"id": "...", "title": "...", "text": "...", "url": "...", "metadata": {...}}
-    """
+    """Fetch full content for a given result id."""
     if not id or not isinstance(id, str):
         return json.dumps({"error": "invalid id"})
 
@@ -181,18 +167,26 @@ def fetch(id: str) -> str:
 
     return json.dumps({"error": f"unsupported method in id: {method}"})
 
+
 # ----------------------------------------------------------------------------
 # Entrypoint
 # ----------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # Choose transport. SSE is commonly used by ChatGPT connectors; FastMCP also supports HTTP.
+    # Try modern signatures first; gracefully fall back for older ones.
     if MCP_TRANSPORT == "http":
-        mcp.run(transport="http", host=HOST, port=PORT, path=MCP_PATH)
-    else:
-        # SSE (legacy, widely supported by ChatGPT connectors)
         try:
-            mcp.run(transport="sse", host=HOST, port=PORT, path=MCP_PATH)
+            mcp.run(transport="http", path=MCP_PATH)
         except TypeError:
-            # Some FastMCP builds don't accept 'path' for SSE; fall back to default root.
-            mcp.run(transport="sse", host=HOST, port=PORT)
+            try:
+                mcp.run(transport="http")
+            except TypeError:
+                mcp.run(transport="http", host=HOST, port=PORT, path=MCP_PATH)
+    else:  # "sse"
+        try:
+            mcp.run(transport="sse", path=MCP_PATH)
+        except TypeError:
+            try:
+                mcp.run(transport="sse")
+            except TypeError:
+                mcp.run(transport="sse", host=HOST, port=PORT, path=MCP_PATH)
