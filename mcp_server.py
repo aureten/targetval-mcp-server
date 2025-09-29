@@ -1,3 +1,4 @@
+# mcp_server.py — TargetVal MCP server (original logic; decorator fix only)
 
 import os
 import json
@@ -117,7 +118,7 @@ def _results_for(symbol: Optional[str], condition: Optional[str]) -> List[Dict[s
 # Tools
 # ----------------------------------------------------------------------------
 
-@mcp.tool
+@mcp.tool()  # ← add parentheses
 def search(query: str) -> str:
     """
     Return a list of candidate results for a free-form query.
@@ -128,7 +129,7 @@ def search(query: str) -> str:
     payload = {"results": results}
     return json.dumps(payload, ensure_ascii=False)
 
-@mcp.tool
+@mcp.tool()  # ← add parentheses
 def fetch(id: str) -> str:
     """
     Fetch full content for a given result id.
