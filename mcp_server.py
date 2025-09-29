@@ -1,18 +1,16 @@
-# mcp_server.py  — TargetVal MCP + public HTTP pass-through
-# - Public, no keys. One server, one port.
-# - Exposes:
-#     • /_http/{path}     → forwards to https://targetval-gateway.onrender.com/{path}
-#     • /healthz          → simple health check
-#     • {MCP_PATH}        → MCP transport endpoint (HTTP preferred; SSE fallback)
+# mcp_server.py  — TargetVal MCP + public HTTP pass-through (no auth)
+# Exposes:
+#   • /_http/{path}  → forwards to https://targetval-gateway.onrender.com/{path}
+#   • /healthz
+#   • {MCP_PATH}     → MCP transport endpoint (HTTP preferred; SSE fallback)
 #
-# ENV knobs:
-#   TARGETVAL_BASE      default: https://targetval-gateway.onrender.com
-#   TARGETVAL_LIMIT     default: 25
-#   REQUEST_TIMEOUT_S   default: 20
-#   MCP_TRANSPORT       default: http   (use "http" to mount into this FastAPI app; "sse" fallback supported)
-#   MCP_PATH            default: /sse   (endpoint path for MCP transport)
-#   PORT                default: 8000
-#   HOST                default: 0.0.0.0
+# ENV:
+#   TARGETVAL_BASE (default https://targetval-gateway.onrender.com)
+#   TARGETVAL_LIMIT (default 25)
+#   REQUEST_TIMEOUT_S (default 20)
+#   MCP_TRANSPORT (default http; use "sse" to force SSE)
+#   MCP_PATH (default /sse)
+#   PORT (default 8000), HOST (default 0.0.0.0)
 
 import os
 import json
@@ -67,7 +65,6 @@ async def http_pass_through(path: str, request: Request):
         request.method, upstream, params=request.query_params,
         content=(body or None), headers=headers
     )
-    # Return upstream content-type (default to JSON)
     return Response(
         content=r.content,
         status_code=r.status_code,
@@ -75,7 +72,7 @@ async def http_pass_through(path: str, request: Request):
     )
 
 # ----------------------------------------------------------------------------
-# MCP: tools & helpers (unchanged behavior)
+# MCP: tools & helpers
 # ----------------------------------------------------------------------------
 
 mcp = FastMCP("TargetVal-MCP")
@@ -83,64 +80,7 @@ mcp = FastMCP("TargetVal-MCP")
 def _parse_query(q: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Extract (symbol, condition) from a free-form query.
-    Heuristics: uppercase gene-like token + the rest as condition; also supports "X in Y" / "X for Y".
+    Heuristics: uppercase gene-like token + the rest as condition; supports "X in Y" / "X for Y".
     """
     if not q or not isinstance(q, str):
-        return None, None
-    txt = q.strip()
-    m = re.match(r"^\s*([A-Za-z0-9\-]+)\s+(?:in|for|->|→)\s+(.+)$", txt, flags=re.I)
-    if m:
-        sym = m.group(1).strip()
-        cond = m.group(2).strip()
-        return sym.upper(), cond
-
-    tokens = txt.split()
-    if not tokens:
-        return None, None
-    sym = None
-    for t in tokens:
-        up = t.strip().upper()
-        if len(up) <= 12 and re.fullmatch(r"[A-Z0-9\-]+", up):
-            sym = up
-            break
-    if sym:
-        rest = txt.replace(sym, "", 1).strip(" ,;:")
-        return sym, (rest or None)
-    return None, txt
-
-def _mk_result(id_: str, title: str, url: str) -> Dict[str, str]:
-    return {"id": id_, "title": title, "url": url}
-
-def _encode_get(url: str) -> str:
-    return f"GET|{url}"
-
-def _encode_post(url: str, body: Dict[str, Any]) -> str:
-    return f"POST|{url}|{json.dumps(body, separators=(',',':'))}"
-
-def _aggregate_body(symbol: Optional[str], condition: Optional[str]) -> Dict[str, Any]:
-    # Keep payload light and focused on high-signal modules
-    modules = ["mech_ppi", "mech_pathways", "tract_drugs", "clin_endpoints"]
-    return {
-        "symbol": symbol,
-        "condition": condition,
-        "modules": modules,
-        "limit": DEFAULT_LIMIT
-    }
-
-def _results_for(symbol: Optional[str], condition: Optional[str]) -> List[Dict[str, str]]:
-    """Return a small list of actionable results for the query."""
-    out: List[Dict[str, str]] = []
-
-    # 1) Aggregate (POST)
-    agg_url = f"{TARGETVAL_BASE}/aggregate"
-    agg_body = _aggregate_body(symbol, condition)
-    out.append(_mk_result(
-        _encode_post(agg_url, agg_body),
-        f"TargetVal aggregate (symbol={symbol or 'NA'}, condition={condition or 'NA'})",
-        agg_url
-    ))
-
-    # 2) Mechanistic PPI (GET)
-    if symbol:
-        ppi_url = f"{TARGETVAL_BASE}/mech/ppi?symbol={urllib.parse.quote(symbol)}&cutoff=0.9&limit={DEFAULT_LIMIT}"
-        out.append(_mk_result(_encode_get(ppi_url), f"PPI (STRING)_
+        ret
